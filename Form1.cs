@@ -1,35 +1,32 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
-using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace CopyToUsb
 {
-    public partial class Form1 : Form
-    {
-        public Form1()
-        {
-            InitializeComponent();
+	public partial class Form1 : Form
+	{
+		#region CONSTRUCTION
 
+		public Form1 ()
+		{
+			InitializeComponent ();
 			RefreshTargets ();
 		}
 
-		private void btnSelectFiles_Click (object sender, EventArgs e)
-		{
-			if (getFolderDialog.ShowDialog () == DialogResult.OK)
-			{
-				SetSelectedFolder (getFolderDialog.SelectedPath);
-			}
-		}
+		#endregion
+
+		#region PROPERTIES
 
 		public DirectoryInfo SelectedFolder { get; private set; }
 		public long FreeBytesRequired { get; private set; }
+
+		#endregion
+
+		#region PRIVATE METHODS
 
 		private void RefreshTargets ()
 		{
@@ -47,12 +44,48 @@ namespace CopyToUsb
 			}
 		}
 
-		private void btnReloadTarget_Click (object sender, EventArgs e)
+		private void SetSelectedFolder (string folderPath)
 		{
-			RefreshTargets ();
+			SelectedFolder = new DirectoryInfo (folderPath);
+			if (SelectedFolder.Exists == false)
+			{
+				MessageBox.Show ("Unable to find folder, please try again.");
+				SelectedFolder = null;
+				btnCopyFolder.Enabled = false;
+				return;
+			}
+			var files = SelectedFolder.GetFiles ("*", SearchOption.AllDirectories);
+			var folderCount = SelectedFolder.EnumerateDirectories ("*", SearchOption.AllDirectories).Count ();
+
+			lblFolderPath.Text = folderPath;
+			lblFoldersFound.Text = $"Folders found: {folderCount}";
+			lblFilesFound.Text = $"Files found: {files.Count ()}";
+
+			FreeBytesRequired = files.Sum (x => x.Length);
+			var sizeMb = (FreeBytesRequired / 1024.0) / 1024.0;
+			lblFolderSize.Text = $"Total size: {sizeMb.ToString ("N")} MB";
+			foreach (var drive in lstTargets.Items.OfType<DriveItem> ().Where (x => x.DriveInfo.AvailableFreeSpace < FreeBytesRequired).ToList ())
+			{
+				lstTargets.SetItemChecked (lstTargets.Items.IndexOf (drive), false);
+			}
+			btnCopyFolder.Enabled = true;
 		}
 
-		private void btnCopyFolder_Click (object sender, EventArgs e)
+		private void ClearSelectedFolder ()
+		{
+			SelectedFolder = null;
+			lblFilesFound.ResetText ();
+			lblFolderPath.ResetText ();
+			lblFoldersFound.ResetText ();
+			lblFolderSize.ResetText ();
+			btnCopyFolder.Enabled = false;
+		}
+
+		#endregion
+
+		#region COPY LOGIC
+
+		private void CopyFolder ()
 		{
 			var targets = new List<string> ();
 
@@ -76,7 +109,7 @@ namespace CopyToUsb
 				{
 					var sourceFolder = SelectedFolder;
 					var targetPath = Path.Combine (item.DriveInfo.RootDirectory.FullName, txtRelativePath.Text);
-					
+
 					if (chkClearRootFiles.Checked == true)
 					{
 						var filters = string.IsNullOrWhiteSpace (txtCleanFilter.Text) ? new string[] { "*" } : txtCleanFilter.Text.Split (';');
@@ -105,7 +138,7 @@ namespace CopyToUsb
 							}
 						}
 					}
-					
+
 					if (chkExtract.Checked == false)
 					{
 						targetPath = Path.Combine (targetPath, sourceFolder.Name);
@@ -125,7 +158,7 @@ namespace CopyToUsb
 						MessageBox.Show ($"Error creating directory: '{targetPath}', continuing to next target");
 						continue;
 					}
-					
+
 					CopyFilesFromDirectory (sourceFolder, targetFolder, resultLog);
 				}
 				catch (UnauthorizedAccessException ex)
@@ -145,7 +178,7 @@ namespace CopyToUsb
 			Log (resultLog, $"Completed copying files!");
 			MessageBox.Show ("Completed copying the files to the targets! Have a great day!");
 		}
-		
+
 		private void CopyFilesFromDirectory (DirectoryInfo source, DirectoryInfo target, Results resultLog)
 		{
 			foreach (var file in source.GetFiles ())
@@ -200,88 +233,26 @@ namespace CopyToUsb
 			}
 		}
 
-		private void SetSelectedFolder (string folderPath)
+		#endregion
+
+		#region EVENT HANDLERS
+
+		private void btnSelectFiles_Click (object sender, EventArgs e)
 		{
-			SelectedFolder = new DirectoryInfo (folderPath);
-			if (SelectedFolder.Exists == false)
+			if (getFolderDialog.ShowDialog () == DialogResult.OK)
 			{
-				MessageBox.Show ("Unable to find folder, please try again.");
-				SelectedFolder = null;
-				btnCopyFolder.Enabled = false;
-				return;
+				SetSelectedFolder (getFolderDialog.SelectedPath);
 			}
-			var files = SelectedFolder.GetFiles ("*", SearchOption.AllDirectories);
-			var folderCount = SelectedFolder.EnumerateDirectories ("*", SearchOption.AllDirectories).Count ();
-
-			lblFolderPath.Text = folderPath;
-			lblFoldersFound.Text = $"Folders found: {folderCount}";
-			lblFilesFound.Text = $"Files found: {files.Count ()}";
-
-			FreeBytesRequired = files.Sum (x => x.Length);
-			var sizeMb = (FreeBytesRequired / 1024.0) / 1024.0;
-			lblFolderSize.Text = $"Total size: {sizeMb.ToString ("N")} MB";
-			foreach (var drive in lstTargets.Items.OfType<DriveItem> ().Where (x => x.DriveInfo.AvailableFreeSpace < FreeBytesRequired).ToList ())
-			{
-				lstTargets.SetItemChecked (lstTargets.Items.IndexOf (drive), false);
-			}
-			btnCopyFolder.Enabled = true;
 		}
 
-		private void ClearSelectedFolder ()
+		private void btnReloadTarget_Click (object sender, EventArgs e)
 		{
-			SelectedFolder = null;
-			lblFilesFound.ResetText ();
-			lblFolderPath.ResetText ();
-			lblFoldersFound.ResetText ();
-			lblFolderSize.ResetText ();
-			btnCopyFolder.Enabled = false;
+			RefreshTargets ();
 		}
 
-		private class DriveItem
+		private void btnCopyFolder_Click (object sender, EventArgs e)
 		{
-			public DriveItem (DriveInfo drive)
-			{
-				DriveInfo = drive;
-			}
-
-			public DriveInfo DriveInfo { get; }
-			public bool IsTarget { get; set; }
-
-			public override string ToString ()
-			{
-				var stringBuilder = new StringBuilder ();
-				stringBuilder.Append (DriveInfo.Name);
-				if (string.IsNullOrWhiteSpace (DriveInfo.VolumeLabel) == false)
-				{
-					stringBuilder.Append ($" - {DriveInfo.VolumeLabel}");
-                }
-				var mbFree = (DriveInfo.AvailableFreeSpace / 1024.0) / 1024.0; // b -> kb -> mb
-				var freeSpace = (mbFree < 100)
-					? $"{mbFree.ToString ("N")} MB"
-					: $"{(mbFree / 1024.0).ToString ("N")} GB";
-				var mbTotal = (DriveInfo.TotalSize / 1024.0) / 1024.0;
-				var totalSpace = (mbTotal < 100)
-					? $"{mbTotal.ToString ("N")} MB"
-					: $"{(mbTotal / 1024.0).ToString ("N")} GB";
-				stringBuilder.Append ($" ({freeSpace} free of {totalSpace})");
-				return stringBuilder.ToString ();
-            }
-		}
-
-		private void lstTargets_ItemCheck (object sender, ItemCheckEventArgs e)
-		{
-			var item = lstTargets.Items[e.Index] as DriveItem;
-			if (item != null)
-			{
-				if (e.NewValue == CheckState.Checked && item.DriveInfo.AvailableFreeSpace < FreeBytesRequired)
-				{
-					if (MessageBox.Show ($"This target doesn't have enough space, setting this as a target is not recommended! Continue anyway?", "Whoa mate", MessageBoxButtons.YesNo) == DialogResult.No)
-					{
-						e.NewValue = CheckState.Unchecked;
-					}
-				}
-				item.IsTarget = e.NewValue == CheckState.Checked;
-			}
+			CopyFolder ();
 		}
 
 		private void chkFormatTargets_CheckedChanged (object sender, EventArgs e)
@@ -323,5 +294,23 @@ namespace CopyToUsb
 
 			e.Effect = DragDropEffects.Copy;
 		}
+
+		private void lstTargets_ItemCheck (object sender, ItemCheckEventArgs e)
+		{
+			var item = lstTargets.Items[e.Index] as DriveItem;
+			if (item != null)
+			{
+				if (e.NewValue == CheckState.Checked && item.DriveInfo.AvailableFreeSpace < FreeBytesRequired)
+				{
+					if (MessageBox.Show ($"This target doesn't have enough space, setting this as a target is not recommended! Continue anyway?", "Whoa mate", MessageBoxButtons.YesNo) == DialogResult.No)
+					{
+						e.NewValue = CheckState.Unchecked;
+					}
+				}
+				item.IsTarget = e.NewValue == CheckState.Checked;
+			}
+		}
+
+		#endregion
 	}
 }
