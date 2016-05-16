@@ -24,30 +24,7 @@ namespace CopyToUsb
 		{
 			if (getFolderDialog.ShowDialog () == DialogResult.OK)
 			{
-				var folderPath = getFolderDialog.SelectedPath;
-				SelectedFolder = new DirectoryInfo (folderPath);
-				if (SelectedFolder.Exists == false)
-				{
-					MessageBox.Show ("Unable to find folder, please try again.");
-					SelectedFolder = null;
-					btnCopyFolder.Enabled = false;
-					return;
-				}
-				var files = SelectedFolder.GetFiles ("*", SearchOption.AllDirectories);
-				var folderCount = SelectedFolder.EnumerateDirectories ("*", SearchOption.AllDirectories).Count ();
-
-				lblFolderPath.Text = folderPath;
-				lblFoldersFound.Text = $"Folders found: {folderCount}";
-				lblFilesFound.Text = $"Files found: {files.Count ()}";
-
-				FreeBytesRequired = files.Sum (x => x.Length);
-				var sizeMb = (FreeBytesRequired / 1024.0) / 1024.0;
-				lblFolderSize.Text = $"Total size: {sizeMb.ToString ("N")} MB";
-				foreach (var drive in lstTargets.Items.OfType<DriveItem> ().Where (x => x.DriveInfo.AvailableFreeSpace < FreeBytesRequired).ToList ())
-				{
-					lstTargets.SetItemChecked (lstTargets.Items.IndexOf (drive), false);
-				}
-				btnCopyFolder.Enabled = true;
+				SetSelectedFolder (getFolderDialog.SelectedPath);
 			}
 		}
 
@@ -223,6 +200,33 @@ namespace CopyToUsb
 			}
 		}
 
+		private void SetSelectedFolder (string folderPath)
+		{
+			SelectedFolder = new DirectoryInfo (folderPath);
+			if (SelectedFolder.Exists == false)
+			{
+				MessageBox.Show ("Unable to find folder, please try again.");
+				SelectedFolder = null;
+				btnCopyFolder.Enabled = false;
+				return;
+			}
+			var files = SelectedFolder.GetFiles ("*", SearchOption.AllDirectories);
+			var folderCount = SelectedFolder.EnumerateDirectories ("*", SearchOption.AllDirectories).Count ();
+
+			lblFolderPath.Text = folderPath;
+			lblFoldersFound.Text = $"Folders found: {folderCount}";
+			lblFilesFound.Text = $"Files found: {files.Count ()}";
+
+			FreeBytesRequired = files.Sum (x => x.Length);
+			var sizeMb = (FreeBytesRequired / 1024.0) / 1024.0;
+			lblFolderSize.Text = $"Total size: {sizeMb.ToString ("N")} MB";
+			foreach (var drive in lstTargets.Items.OfType<DriveItem> ().Where (x => x.DriveInfo.AvailableFreeSpace < FreeBytesRequired).ToList ())
+			{
+				lstTargets.SetItemChecked (lstTargets.Items.IndexOf (drive), false);
+			}
+			btnCopyFolder.Enabled = true;
+		}
+
 		private void ClearSelectedFolder ()
 		{
 			SelectedFolder = null;
@@ -286,6 +290,38 @@ namespace CopyToUsb
 			{
 				MessageBox.Show ($"WARNING: This will delete all files and folders from all targets! Double-check you are not deleting anything important, it will not be recoverable!");
 			}
+		}
+
+		private void Form1_DragDrop (object sender, DragEventArgs e)
+		{
+			var data = e.Data.GetData (DataFormats.FileDrop, true) as string[];
+			if (data?.Length != 1)
+			{
+				return;
+			}
+
+			SetSelectedFolder (data[0]);
+		}
+
+		private void Form1_DragEnter (object sender, DragEventArgs e)
+		{
+			e.Effect = DragDropEffects.None;
+			if (!e.Data.GetDataPresent (DataFormats.FileDrop))
+			{
+				return;
+			}
+			var fileList = ((string[])e.Data.GetData (DataFormats.FileDrop));
+			if (fileList.Length != 1)
+			{
+				return;
+			}
+
+			if (!Directory.Exists (fileList[0]))
+			{
+				return;
+			}
+
+			e.Effect = DragDropEffects.Copy;
 		}
 	}
 }

@@ -308,6 +308,8 @@
 			this.Name = "Form1";
 			this.ShowIcon = false;
 			this.Text = "CopyGog";
+			this.DragDrop += new System.Windows.Forms.DragEventHandler(this.Form1_DragDrop);
+			this.DragEnter += new System.Windows.Forms.DragEventHandler(this.Form1_DragEnter);
 			this.grpSource.ResumeLayout(false);
 			this.grpSource.PerformLayout();
 			this.grpTarget.ResumeLayout(false);
